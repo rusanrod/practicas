@@ -1,6 +1,7 @@
 
 import numpy as np
 import cv2
+import math
 
 Sx = np.array(([1,0,-1],[2,0,-2],[1,0,-1]))
 Sy = Sx.transpose()
@@ -86,12 +87,73 @@ def canny(frame):
     max = non_maximum_suppression(Gm, Ga)
     return hysteresis(max, 40, 160)
 
+
+def hough_lines(img_edges, threshold):
+    height, width = img_edges.shape
+    max_rho = int(math.hypot(height, width))
+    theta_values = np.deg2rad(np.arange(-90, 90))
+
+    accumulator = np.zeros((2 * max_rho, len(theta_values)), dtype=np.uint64)
+
+    for y in range(height):
+        for x in range(width):
+            if img_edges[y, x] == 255:
+                for theta_index, theta in enumerate(theta_values):
+                    rho = int(x * np.cos(theta) + y * np.sin(theta))
+                    accumulator[rho + max_rho, theta_index] += 1
+
+    # Encontramos los índices de los picos en la matriz de acumulación
+    rho_idx, theta_idx = np.where(accumulator >= threshold)
+
+    # Dibujamos las líneas encontradas en la imagen original
+    lines_img = cv2.cvtColor(img_edges, cv2.COLOR_GRAY2BGR)
+    for i in range(len(rho_idx)):
+        rho = rho_idx[i] - max_rho
+        theta = theta_values[theta_idx[i]]
+        a = np.cos(theta)
+        b = np.sin(theta)
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int(x0 + 1000 * (-b))
+        y1 = int(y0 + 1000 * (a))
+        x2 = int(x0 - 1000 * (-b))
+        y2 = int(y0 - 1000 * (a))
+        cv2.line(lines_img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+
+    return lines_img
+
+
+
+
+
+def draw_lines(img, rhos, thetas, peak_coords):
+    for peak in peak_coords:
+        rho, theta_idx = peak
+        theta = thetas[theta_idx]
+        a = np.cos(theta)
+        b = np.sin(theta)
+        x0 = a * rhos[rho]
+        y0 = b * rhos[rho]
+        x1 = int(x0 + 1000 * (-b))
+        y1 = int(y0 + 1000 * (a))
+        x2 = int(x0 - 1000 * (-b))
+        y2 = int(y0 - 1000 * (a))
+        cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        
+
 def main():
-    img = cv2.imread("baboon.jpg")
-    img_lines = canny(img)
+    img = cv2.imread("lines.png")
+
+    # Utilizar tu función canny para obtener los bordes
+    img_edges = canny(img)
+    shape = img_edges.shape 
+    print(shape)
+    img_hough = hough_lines(img_edges, 110)
+    
     cv2.imshow('original', img)
-    cv2.imshow("canny", img_lines)
+    cv2.imshow("detected lines", img_hough)
     cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     #Canny algorith using video capture is too slow (dont recommended)
     '''cap = cv2.VideoCapture(0)
